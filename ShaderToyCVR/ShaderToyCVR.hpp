@@ -34,8 +34,9 @@ private:
 	osg::StateSet* mState;
 	cvr::SceneObject* mSceneObject;
 
-	osg::Uniform* iInverseViewMatrix;
-	osg::Uniform* iInverseProjectionMatrix;
+	osg::Uniform* iModelMatrix;
+	osg::Uniform* iViewMatrix;
+	osg::Uniform* iProjectionMatrix;
 
 	osg::Uniform* iResolution;
 	osg::Uniform* iTime;

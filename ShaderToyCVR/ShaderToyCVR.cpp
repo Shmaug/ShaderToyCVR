@@ -25,14 +25,17 @@ CVRPLUGIN(ShaderToyCVR)
 ShaderToyCVR::ShaderToyCVR() {}
 ShaderToyCVR::~ShaderToyCVR() {}
 
+static const string shaderDirectory = "C:\\Projects\\ShaderToyCVR\\shaders\\";
+
 static const string vertSource =
 	"#version 400\n"
-	"uniform mat4 osg_ModelViewProjectionMatrix;\n"
+	"uniform mat4 iModelMatrix;\n"
+	"uniform mat4 iViewMatrix;\n"
+	"uniform mat4 iProjectionMatrix;\n"
 	"layout(location = 0) in vec4 osg_Vertex;\n"
-	"out vec4 _clipPos;\n"
 	"void main() {\n"
-	"	gl_Position = osg_ModelViewProjectionMatrix * osg_Vertex;\n"
-	"	_clipPos = gl_Position;\n"
+	"	vec4 worldPos = iModelMatrix * osg_Vertex;\n"
+	"	gl_Position = iProjectionMatrix * iViewMatrix * worldPos;\n"
 	"}";
 
 static const string fragSource =
@@ -49,43 +52,42 @@ static const string fragSource =
 	"uniform sampler2D iChannel2;"
 	"uniform sampler2D iChannel3;"
 	"uniform vec4 iDate;"
-	"uniform float iSampleRate;"
-	"uniform mat4 iInverseViewMatrix;"
-	"uniform mat4 iInverseProjectionMatrix;"
-	"in vec4 _clipPos;\n";
+	"uniform float iSampleRate;\n";
 
 static const string fragMain = 
 	"void main() {\n"
-	"	vec4 viewp = iInverseProjectionMatrix * vec4(_clipPos.xy, 1.0, 1.0);\n"
-	"	viewp /= viewp.w;\n"
-	"	vec4 wp = iInverseViewMatrix * viewp;\n"
-	"	vec3 ro = iInverseViewMatrix[3].xyz / iInverseViewMatrix[3].w;\n"
-
 	"	vec4 c;\n"
-	"	//mainImage(c, gl_FragCoord.xy);\n"
-	"	mainVR(c, gl_FragCoord.xy, ro, normalize(wp.xyz - ro));\n"
+	"	mainImage(c, gl_FragCoord.xy);\n"
+	"	//mainVR(c, gl_FragCoord.xy, ro, normalize(wp.xyz - ro));\n"
 	"	gl_FragColor = c;\n"
 	"	gl_FragColor.a = 1.0;\n"
 	"}";
 
-struct InverseViewMatrixCallback : public Uniform::Callback {
+struct ModelMatrixCallback : public Uniform::Callback {
 	osg::Camera* _camera;
-	InverseViewMatrixCallback(Camera* camera) : _camera(camera) {}
+	ModelMatrixCallback(Camera* camera) : _camera(camera) {}
 	virtual void operator()(osg::Uniform* uniform, osg::NodeVisitor* nv) {
-		uniform->set(Matrix::inverse(computeLocalToWorld(nv->getNodePath()) * _camera->getViewMatrix()));
+		uniform->set(computeLocalToWorld(nv->getNodePath()));
 	}
 };
-struct InverseProjectionMatrixCallback : public Uniform::Callback {
+struct ViewMatrixCallback : public Uniform::Callback {
 	osg::Camera* _camera;
-	InverseProjectionMatrixCallback(Camera* camera) : _camera(camera) {}
+	ViewMatrixCallback(Camera* camera) : _camera(camera) {}
 	virtual void operator()(osg::Uniform* uniform, osg::NodeVisitor* nv) {
-		uniform->set(Matrix::inverse(_camera->getProjectionMatrix()));
+		uniform->set(_camera->getViewMatrix());
+	}
+};
+struct ProjectionMatrixCallback : public Uniform::Callback {
+	osg::Camera* _camera;
+	ProjectionMatrixCallback(Camera* camera) : _camera(camera) {}
+	virtual void operator()(osg::Uniform* uniform, osg::NodeVisitor* nv) {
+		uniform->set(_camera->getProjectionMatrix());
 	}
 };
 
 void ShaderToyCVR::LoadShader(const string& name) {
-	ifstream t("E:\\Data\\shadertoy\\" + name);
-	printf("Loading shader %s\n", ("E:\\Data\\shadertoy\\" + name).c_str());
+	ifstream t(shaderDirectory + name);
+	printf("Loading shader %s\n", (shaderDirectory + name).c_str());
 
 	string src = fragSource;
 
@@ -138,8 +140,9 @@ void ShaderToyCVR::CreateCube() {
 	mShader->addShader(new Shader(Shader::VERTEX, vertSource));
 	mShader->addShader(mActiveShader = new Shader(Shader::FRAGMENT, fragSource + "void main(){gl_FragColor = vec4(0,1,0,1);}"));
 
-	iInverseViewMatrix = new Uniform(Uniform::FLOAT_MAT4, "iInverseViewMatrix");
-	iInverseProjectionMatrix = new Uniform(Uniform::FLOAT_MAT4, "iInverseProjectionMatrix");
+	iModelMatrix = new Uniform(Uniform::FLOAT_MAT4, "iModelMatrix");
+	iViewMatrix = new Uniform(Uniform::FLOAT_MAT4, "iViewMatrix");
+	iProjectionMatrix = new Uniform(Uniform::FLOAT_MAT4, "iProjectionMatrix");
 
 	iResolution = new Uniform(Uniform::FLOAT_VEC3, "iResolution");
 	iTime = new Uniform(Uniform::FLOAT, "iTime");
@@ -160,8 +163,9 @@ void ShaderToyCVR::CreateCube() {
 	mState->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
 	mState->setAttributeAndModes(mShader, StateAttribute::ON);
 
-	mState->addUniform(iInverseViewMatrix);
-	mState->addUniform(iInverseProjectionMatrix);
+	mState->addUniform(iModelMatrix);
+	mState->addUniform(iViewMatrix);
+	mState->addUniform(iProjectionMatrix);
 
 	mState->addUniform(iResolution);
 	mState->addUniform(iTime);
@@ -190,13 +194,13 @@ bool ShaderToyCVR::init() {
 	#ifdef WIN32
 
 	WIN32_FIND_DATA ffd;
-	HANDLE hFind = FindFirstFile("E:\\Data\\shadertoy\\*.frag", &ffd);
+	HANDLE hFind = FindFirstFile((shaderDirectory + "*.frag").c_str(), &ffd);
 	if (hFind != INVALID_HANDLE_VALUE) {
 		do {
 			if (ffd.cFileName[0] == '.') continue;
 
 			if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
-				printf("Loaded shader %s\n", ffd.cFileName);
+				printf("Found shader %s\n", ffd.cFileName);
 				auto btn = new MenuButton(ffd.cFileName);
 				btn->setCallback(this);
 				mSubMenu->addItem(btn);
@@ -218,8 +222,9 @@ bool ShaderToyCVR::init() {
 	CVRViewer::instance()->getCameras(cameras);
 	for (const auto& c : cameras) {
 		c->getGraphicsContext()->getState()->setUseModelViewAndProjectionUniforms(true);
-		iInverseViewMatrix->setUpdateCallback(new InverseViewMatrixCallback(c));
-		iInverseProjectionMatrix->setUpdateCallback(new InverseProjectionMatrixCallback(c));
+		iModelMatrix->setUpdateCallback(new ModelMatrixCallback(c));
+		iViewMatrix->setUpdateCallback(new ViewMatrixCallback(c));
+		iProjectionMatrix->setUpdateCallback(new ProjectionMatrixCallback(c));
 	}
 
 	return true;

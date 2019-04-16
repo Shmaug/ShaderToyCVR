@@ -2,8 +2,10 @@
 
 #include <cvrMenu/MenuSystem.h>
 #include <cvrKernel/PluginHelper.h>
+#include <cvrConfig/ConfigManager.h>
 
 #include <osg/Depth>
+#include <osg/CullFace>
 #include <osgUtil/CullVisitor>
 
 #include <ctime>
@@ -14,6 +16,9 @@
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#else
+#include <sys/types.h>
+#include <dirent.h>
 #endif
 
 using namespace osg;
@@ -25,17 +30,15 @@ CVRPLUGIN(ShaderToyCVR)
 ShaderToyCVR::ShaderToyCVR() {}
 ShaderToyCVR::~ShaderToyCVR() {}
 
-static const string shaderDirectory = "C:\\Projects\\ShaderToyCVR\\shaders\\";
-
 static const string vertSource =
 	"#version 400\n"
-	"uniform mat4 iModelMatrix;\n"
-	"uniform mat4 iViewMatrix;\n"
-	"uniform mat4 iProjectionMatrix;\n"
+	"uniform mat4 osg_ModelViewProjectionMatrix;\n"
+	"uniform vec3 iCameraPosition;\n"
 	"layout(location = 0) in vec4 osg_Vertex;\n"
+	"out vec3 _WorldRay;"
 	"void main() {\n"
-	"	vec4 worldPos = iModelMatrix * osg_Vertex;\n"
-	"	gl_Position = iProjectionMatrix * iViewMatrix * worldPos;\n"
+	"	_WorldRay = osg_Vertex.xyz;\n"
+	"	gl_Position = osg_ModelViewProjectionMatrix * osg_Vertex;\n"
 	"}";
 
 static const string fragSource =
@@ -52,42 +55,31 @@ static const string fragSource =
 	"uniform sampler2D iChannel2;"
 	"uniform sampler2D iChannel3;"
 	"uniform vec4 iDate;"
-	"uniform float iSampleRate;\n";
+	"uniform float iSampleRate;"
+	"uniform vec3 iCameraPosition;"
+	"in vec3 _WorldRay;\n";
 
 static const string fragMain = 
 	"void main() {\n"
 	"	vec4 c;\n"
-	"	mainImage(c, gl_FragCoord.xy);\n"
-	"	//mainVR(c, gl_FragCoord.xy, ro, normalize(wp.xyz - ro));\n"
+	"	//mainImage(c, gl_FragCoord.xy);\n"
+	"	mainVR(c, gl_FragCoord.xy, iCameraPosition.xzy, normalize(_WorldRay.xzy));\n"
 	"	gl_FragColor = c;\n"
 	"	gl_FragColor.a = 1.0;\n"
 	"}";
 
-struct ModelMatrixCallback : public Uniform::Callback {
+struct CameraPositionCallback : public Uniform::Callback {
 	osg::Camera* _camera;
-	ModelMatrixCallback(Camera* camera) : _camera(camera) {}
+	CameraPositionCallback(Camera* camera) : _camera(camera) {}
 	virtual void operator()(osg::Uniform* uniform, osg::NodeVisitor* nv) {
-		uniform->set(computeLocalToWorld(nv->getNodePath()));
-	}
-};
-struct ViewMatrixCallback : public Uniform::Callback {
-	osg::Camera* _camera;
-	ViewMatrixCallback(Camera* camera) : _camera(camera) {}
-	virtual void operator()(osg::Uniform* uniform, osg::NodeVisitor* nv) {
-		uniform->set(_camera->getViewMatrix());
-	}
-};
-struct ProjectionMatrixCallback : public Uniform::Callback {
-	osg::Camera* _camera;
-	ProjectionMatrixCallback(Camera* camera) : _camera(camera) {}
-	virtual void operator()(osg::Uniform* uniform, osg::NodeVisitor* nv) {
-		uniform->set(_camera->getProjectionMatrix());
+		Vec3 camp = Vec3f(0.f, 0.f, 0.f) * _camera->getInverseViewMatrix();
+		uniform->set(camp * computeWorldToLocal(nv->getNodePath()) * .01f);
 	}
 };
 
 void ShaderToyCVR::LoadShader(const string& name) {
-	ifstream t(shaderDirectory + name);
-	printf("Loading shader %s\n", (shaderDirectory + name).c_str());
+	ifstream t(mShaderDir + name);
+	printf("Loading shader %s\n", (mShaderDir + name).c_str());
 
 	string src = fragSource;
 
@@ -105,28 +97,29 @@ void ShaderToyCVR::CreateCube() {
 	indices = new DrawElementsUInt(PrimitiveSet::TRIANGLES, 0);
 
 	vertices->setName("ShaderToy Cube Vertices");
-	vertices->push_back(Vec3f(-100000.f, -100000.f,  100000.f));
-	vertices->push_back(Vec3f( 100000.f, -100000.f,  100000.f));
-	vertices->push_back(Vec3f( 100000.f,  100000.f,  100000.f));
-	vertices->push_back(Vec3f(-100000.f,  100000.f,  100000.f));
-	vertices->push_back(Vec3f(-100000.f, -100000.f, -100000.f));
-	vertices->push_back(Vec3f( 100000.f, -100000.f, -100000.f));
-	vertices->push_back(Vec3f( 100000.f,  100000.f, -100000.f));
-	vertices->push_back(Vec3f(-100000.f,  100000.f, -100000.f));
+	const float s = 100000.f;
+	vertices->push_back(Vec3f(-s, -s,  s));
+	vertices->push_back(Vec3f( s, -s,  s));
+	vertices->push_back(Vec3f( s,  s,  s));
+	vertices->push_back(Vec3f(-s,  s,  s));
+	vertices->push_back(Vec3f(-s, -s, -s));
+	vertices->push_back(Vec3f( s, -s, -s));
+	vertices->push_back(Vec3f( s,  s, -s));
+	vertices->push_back(Vec3f(-s,  s, -s));
 
 	indices->setName("ShaderToy Cube Indices");
-	indices->push_back(0); indices->push_back(1); indices->push_back(2);
-	indices->push_back(2); indices->push_back(3); indices->push_back(0);
-	indices->push_back(1); indices->push_back(5); indices->push_back(6);
-	indices->push_back(6); indices->push_back(2); indices->push_back(1);
-	indices->push_back(7); indices->push_back(6); indices->push_back(5);
-	indices->push_back(5); indices->push_back(4); indices->push_back(7);
-	indices->push_back(4); indices->push_back(0); indices->push_back(3);
-	indices->push_back(3); indices->push_back(7); indices->push_back(4);
-	indices->push_back(4); indices->push_back(5); indices->push_back(1);
-	indices->push_back(1); indices->push_back(0); indices->push_back(4);
-	indices->push_back(3); indices->push_back(2); indices->push_back(6);
-	indices->push_back(6); indices->push_back(7); indices->push_back(3);
+	indices->push_back(0); indices->push_back(2); indices->push_back(1);
+	indices->push_back(2); indices->push_back(0); indices->push_back(3);
+	indices->push_back(1); indices->push_back(6); indices->push_back(5);
+	indices->push_back(6); indices->push_back(1); indices->push_back(2);
+	indices->push_back(7); indices->push_back(5); indices->push_back(6);
+	indices->push_back(5); indices->push_back(7); indices->push_back(4);
+	indices->push_back(4); indices->push_back(3); indices->push_back(0);
+	indices->push_back(3); indices->push_back(4); indices->push_back(7);
+	indices->push_back(4); indices->push_back(1); indices->push_back(5);
+	indices->push_back(1); indices->push_back(4); indices->push_back(0);
+	indices->push_back(3); indices->push_back(6); indices->push_back(2);
+	indices->push_back(6); indices->push_back(3); indices->push_back(7);
 
 	Geometry* geometry = new Geometry();
 	geometry->setVertexArray(vertices);
@@ -140,9 +133,7 @@ void ShaderToyCVR::CreateCube() {
 	mShader->addShader(new Shader(Shader::VERTEX, vertSource));
 	mShader->addShader(mActiveShader = new Shader(Shader::FRAGMENT, fragSource + "void main(){gl_FragColor = vec4(0,1,0,1);}"));
 
-	iModelMatrix = new Uniform(Uniform::FLOAT_MAT4, "iModelMatrix");
-	iViewMatrix = new Uniform(Uniform::FLOAT_MAT4, "iViewMatrix");
-	iProjectionMatrix = new Uniform(Uniform::FLOAT_MAT4, "iProjectionMatrix");
+	iCameraPosition = new Uniform(Uniform::FLOAT_VEC3, "iCameraPosition");
 
 	iResolution = new Uniform(Uniform::FLOAT_VEC3, "iResolution");
 	iTime = new Uniform(Uniform::FLOAT, "iTime");
@@ -150,7 +141,7 @@ void ShaderToyCVR::CreateCube() {
 	iFrame = new Uniform(Uniform::INT, "iFrame");
 	iChannelTime = new Uniform(Uniform::FLOAT, "iChannelTime", 4);
 	iChannelResolution = new Uniform(Uniform::FLOAT_VEC3, "iChannelResolution", 4);
-	iMouse = new Uniform(Uniform::FLOAT_VEC4, "iChannelResolution");
+	iMouse = new Uniform(Uniform::FLOAT_VEC4, "iMouse");
 	iChannel0 = new Uniform(Uniform::SAMPLER_2D, "iChannel0");
 	iChannel1 = new Uniform(Uniform::SAMPLER_2D, "iChannel1");
 	iChannel2 = new Uniform(Uniform::SAMPLER_2D, "iChannel2");
@@ -159,13 +150,11 @@ void ShaderToyCVR::CreateCube() {
 	iSampleRate = new Uniform(Uniform::FLOAT, "iSampleRate");
 
 	mState = geode->getOrCreateStateSet();
-	mState->setAttributeAndModes(new Depth(Depth::LEQUAL, 1.f, 1.f));
-	mState->setMode(GL_LIGHTING, osg::StateAttribute::OFF);
+	//mState->setAttributeAndModes(new Depth(Depth::LEQUAL, 1.f, 1.f));
+	mState->setAttributeAndModes(new CullFace(CullFace::Mode::BACK));
 	mState->setAttributeAndModes(mShader, StateAttribute::ON);
 
-	mState->addUniform(iModelMatrix);
-	mState->addUniform(iViewMatrix);
-	mState->addUniform(iProjectionMatrix);
+	mState->addUniform(iCameraPosition);
 
 	mState->addUniform(iResolution);
 	mState->addUniform(iTime);
@@ -191,10 +180,12 @@ bool ShaderToyCVR::init() {
 	mSubMenu = new SubMenu("ShaderToy", "ShaderToy");
 	mSubMenu->setCallback(this);
 
+	mShaderDir = ConfigManager::getEntry("Plugin.ShaderToyCVR.ShaderDir");
+
 	#ifdef WIN32
 
 	WIN32_FIND_DATA ffd;
-	HANDLE hFind = FindFirstFile((shaderDirectory + "*.frag").c_str(), &ffd);
+	HANDLE hFind = FindFirstFile((mShaderDir + "*.frag").c_str(), &ffd);
 	if (hFind != INVALID_HANDLE_VALUE) {
 		do {
 			if (ffd.cFileName[0] == '.') continue;
@@ -212,6 +203,21 @@ bool ShaderToyCVR::init() {
 	} else
 		printf("Failed to open shader directory\n");
 
+	#else
+
+	DIR* dirp = opendir(mShaderDir.c_str());
+	struct dirent* dp;
+	while ((dp = readdir(dirp)) != NULL) {
+		if (strrchr(dp->d_name, '.') != "frag") continue;
+
+		printf("Found shader %s\n", dp->d_name);
+		auto btn = new MenuButton(dp->d_name);
+		btn->setCallback(this);
+		mSubMenu->addItem(btn);
+		mShaderButtons.push_back(btn);
+	}
+	closedir(dirp);
+
 	#endif
 
 	MenuSystem::instance()->addMenuItem(mSubMenu);
@@ -222,9 +228,7 @@ bool ShaderToyCVR::init() {
 	CVRViewer::instance()->getCameras(cameras);
 	for (const auto& c : cameras) {
 		c->getGraphicsContext()->getState()->setUseModelViewAndProjectionUniforms(true);
-		iModelMatrix->setUpdateCallback(new ModelMatrixCallback(c));
-		iViewMatrix->setUpdateCallback(new ViewMatrixCallback(c));
-		iProjectionMatrix->setUpdateCallback(new ProjectionMatrixCallback(c));
+		iCameraPosition->setUpdateCallback(new CameraPositionCallback(c));
 	}
 
 	return true;
@@ -233,7 +237,7 @@ bool ShaderToyCVR::init() {
 void ShaderToyCVR::menuCallback(MenuItem* menuItem) {
 	for (unsigned int i = 0; i < mShaderButtons.size(); i++) {
 		if (menuItem == mShaderButtons[i]) {
-			mStartTime = osg::Timer::instance()->tick();
+			mStartTime = PluginHelper::getProgramDuration();
 			mFrame = 0;
 			LoadShader(mShaderButtons[i]->getText());
 			break;
@@ -253,17 +257,16 @@ void ShaderToyCVR::preFrame() {
 		h = c->getTraits()->height;
 	}
 
+	mMouse.set(PluginHelper::getMouseX(), PluginHelper::getMouseY(), 0, 0);
+
 	time_t nowt = time(0);
 	tm* now = localtime(&nowt);
 
-	Timer_t frameTick = osg::Timer::instance()->tick();
-
 	iResolution->set(Vec3(w, h, 1));
-	iTime->set((float)Timer::instance()->delta_s(mStartTime, frameTick));
-	iTimeDelta->set((float)Timer::instance()->delta_s(mLastFrame, frameTick));
+	iTime->set((float)(PluginHelper::getProgramDuration() - mStartTime));
+	iTimeDelta->set((float)PluginHelper::getLastFrameDuration());
 	iFrame->set(mFrame);
 	iDate->set(Vec4(now->tm_year, now->tm_mon, now->tm_mday, now->tm_sec));
 	iSampleRate->set(44100.0f);
-
-	mLastFrame = frameTick;
+	iMouse->set(mMouse);
 }

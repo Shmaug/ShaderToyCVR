@@ -9,6 +9,8 @@
 #include <osg/Uniform>
 #include <osg/Timer>
 
+#include <string>
+
 class ShaderToyCVR : public cvr::MenuCallback, public cvr::CVRPlugin {
 public:
 	ShaderToyCVR();
@@ -23,6 +25,8 @@ private:
 	void CreateCube();
 	void LoadShader(const std::string& name);
 
+	std::string mShaderDir;
+
 	cvr::SubMenu* mSubMenu;
 	std::vector<cvr::MenuButton*> mShaderButtons;
 
@@ -34,9 +38,7 @@ private:
 	osg::StateSet* mState;
 	cvr::SceneObject* mSceneObject;
 
-	osg::Uniform* iModelMatrix;
-	osg::Uniform* iViewMatrix;
-	osg::Uniform* iProjectionMatrix;
+	osg::Uniform* iCameraPosition;
 
 	osg::Uniform* iResolution;
 	osg::Uniform* iTime;
@@ -53,6 +55,6 @@ private:
 	osg::Uniform* iSampleRate;
 
 	int mFrame;
-	osg::Timer_t mStartTime;
-	osg::Timer_t mLastFrame;
+	double mStartTime;
+	osg::Vec4 mMouse;
 };

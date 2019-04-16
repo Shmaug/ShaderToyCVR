@@ -137,10 +137,10 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     // ray
     vec3 rd = ca * normalize( vec3(p.xy,1.5));
     
-    fragColor = render( ro, rd, ivec2(fragCoord-0.5) );
+    fragColor = render( ro + vec3(0.0, 0.4, 0.0), rd, ivec2(fragCoord-0.5) );
 }
 
 void mainVR( out vec4 fragColor, in vec2 fragCoord, in vec3 fragRayOri, in vec3 fragRayDir )
 {
-    fragColor = render( fragRayOri, fragRayDir, ivec2(fragCoord-0.5) );
+    fragColor = render( fragRayOri + vec3(0.0, 0.4, 0.0), fragRayDir, ivec2(fragCoord-0.5) );
 }

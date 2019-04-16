@@ -76,9 +76,9 @@
     <IncludePath>E:\Programs\CalVR\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>E:\Programs\CalVR\include;E:\Programs\OpenSceneGraph-3.6.3\$(Configuration)\include;$(IncludePath)</IncludePath>
-    <LibraryPath>E:\Programs\CalVR\lib;E:\Programs\OpenSceneGraph-3.6.3\$(Configuration)\lib;$(LibraryPath)</LibraryPath>
-    <OutDir>E:\Programs\CalVR\bin\calvr-plugins\</OutDir>
+    <IncludePath>$(CALVR_HOME)\include;$(OSG_HOME)\$(Configuration)\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(CALVR_HOME)\lib;$(OSG_HOME)\$(Configuration)\lib;$(LibraryPath)</LibraryPath>
+    <OutDir>$(CALVR_HOME)\bin\calvr-plugins\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>E:\Programs\CalVR\include;E:\Programs\OpenSceneGraph-3.6.3\$(Configuration)\include;$(IncludePath)</IncludePath>
@@ -105,7 +105,7 @@
       <PreprocessorDefinitions>_WINDLL;WIN32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>E:\Programs\CalVR\lib\CalVRALL.lib;E:\Programs\OpenSceneGraph-3.6.3\Debug\lib\osgd.lib;E:\Programs\OpenSceneGraph-3.6.3\Debug\lib\OpenThreadsd.lib;E:\Programs\OpenSceneGraph-3.6.3\Debug\lib\osgViewerd.lib;E:\Programs\OpenSceneGraph-3.6.3\Debug\lib\osgDBd.lib;E:\Programs\glew-2.1.0\lib\Release\x64\glew32.lib;OpenGL32.lib;glu32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(CALVR_HOME)\lib\CalVRALL.lib;$(OSG_HOME)\lib\osgd.lib;$(OSG_HOME)\lib\OpenThreadsd.lib;$(OSG_HOME)\Debug\lib\osgViewerd.lib;$(OSG_HOME)\Debug\lib\osgDBd.lib;$(GLEW_HOME)\lib\Release\x64\glew32.lib;OpenGL32.lib;glu32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <SubSystem>Console</SubSystem>
     </Link>

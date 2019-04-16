@@ -97,7 +97,7 @@ void ShaderToyCVR::CreateCube() {
 	indices = new DrawElementsUInt(PrimitiveSet::TRIANGLES, 0);
 
 	vertices->setName("ShaderToy Cube Vertices");
-	const float s = 100000.f;
+	const float s = 1000000.f;
 	vertices->push_back(Vec3f(-s, -s,  s));
 	vertices->push_back(Vec3f( s, -s,  s));
 	vertices->push_back(Vec3f( s,  s,  s));
@@ -150,7 +150,7 @@ void ShaderToyCVR::CreateCube() {
 	iSampleRate = new Uniform(Uniform::FLOAT, "iSampleRate");
 
 	mState = geode->getOrCreateStateSet();
-	//mState->setAttributeAndModes(new Depth(Depth::LEQUAL, 1.f, 1.f));
+	mState->setAttributeAndModes(new Depth(Depth::LEQUAL, 0.0, 1.0, false));
 	mState->setAttributeAndModes(new CullFace(CullFace::Mode::BACK));
 	mState->setAttributeAndModes(mShader, StateAttribute::ON);
 
